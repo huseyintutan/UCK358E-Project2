@@ -16,6 +16,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
 
 # IMPORT THE DATA
 
@@ -38,11 +39,13 @@ plt.ylabel('Missing Value Count')
 bar_plot.set_xticklabels(bar_plot.get_xticklabels(), rotation=90, ha='right')
 plt.tight_layout()
 
+# plt.show()
+
 # Filling the missing values
 
 # Kategorik sütunları 'NA' ile doldurma
 categorical_cols = ['PoolQC', 'MiscFeature', 'Alley', 'Fence', 'FireplaceQu', 'GarageCond', 'GarageType', 'GarageFinish', 'GarageQual', 'BsmtFinType2', 'BsmtExposure', 'BsmtQual', 'BsmtCond', 'BsmtFinType1']
-
+non_numeric_cols = data.select_dtypes(include=['object']).columns
 data[categorical_cols] = data[categorical_cols].fillna('NA')
 data['LotFrontage'] = data['LotFrontage'].fillna(data['LotFrontage'].median())
 data['GarageYrBlt'] = data['GarageYrBlt'].fillna(data['GarageYrBlt'].median())
@@ -67,50 +70,46 @@ encoder = OneHotEncoder(handle_unknown='ignore', sparse=False)
 encoded_cols = pd.DataFrame(encoder.fit_transform(data[categorical_cols]))
 encoded_cols.columns = encoder.get_feature_names_out(categorical_cols)
 
-# Concatenate encoded columns with the original data
-data_encoded = pd.concat([data, encoded_cols], axis=1)
-
-# Drop the original categorical columns
-data_encoded.drop(categorical_cols, axis=1, inplace=True)
-
-# Numeric columns for normalization
-numeric_cols = ['MSSubClass', 'LotFrontage', 'LotArea', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'MasVnrArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 'GrLivArea', 'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath', 'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 'GarageYrBlt', 'GarageCars', 'GarageArea', 'WoodDeckSF', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch', 'PoolArea', 'MiscVal', 'MoSold', 'YrSold', 'Age', 'TotalSF', 'HasGarage', 'TotalBath', 'TotalRooms', 'TotalVerandaArea']
-
-# Create a ColumnTransformer for preprocessing
-preprocessor = ColumnTransformer([
-    ('numeric_preprocessing', StandardScaler(), numeric_cols)
-], remainder='passthrough')
+# Combine encoded categorical features with numerical features
+X_encoded = pd.concat([X, encoded_cols], axis=1)
 
 # Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(data_encoded, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=1459, random_state=42)
 
-# Create a pipeline with the preprocessor and linear regression model
-pipeline = make_pipeline(preprocessor, LinearRegression())
+# Create and train the decision tree model
+model = DecisionTreeRegressor(random_state=42)
+model.fit(X_train, y_train)
 
-# Fit the pipeline on the training data
-pipeline.fit(X_train, y_train)
+# Make predictions on the test set
+y_pred = model.predict(X_test)
 
-# Predict the target variable for the test data
-y_pred = pipeline.predict(X_test)
-
-# Evaluate the model using metrics
+# Evaluate the model
 mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse)
 r2 = r2_score(y_test, y_pred)
 
-print("Mean Squared Error (MSE):", mse)
-print("Root Mean Squared Error (RMSE):", rmse)
-print("R-squared (R2) Score:", r2)
+print("Mean Squared Error:", mse)
+print("R^2 Score:", r2)
 
-# Predict target variable for the test dataset
-test_encoded = pd.concat([test, encoded_cols], axis=1)
-test_encoded.drop(categorical_cols, axis=1, inplace=True)
+# Feature importance
+importance = model.feature_importances_
+feature_names = X_encoded.columns
+sorted_indices = np.argsort(importance)
 
-# Check for missing columns and add them with values set to 0
-missing_cols = set(X_train.columns) - set(test_encoded.columns)
-for col in missing_cols:
-    test_encoded[col] = 0
+plt.figure(figsize=(12, 6))
+plt.barh(range(len(sorted_indices)), importance[sorted_indices], align='center')
+plt.yticks(range(len(sorted_indices)), feature_names[sorted_indices])
+plt.xlabel('Feature Importance')
+plt.ylabel('Features')
+plt.title('Decision Tree Regressor - Feature Importance')
 
-test_pred = pipeline.predict(test_encoded)
-predictions = pd.DataFrame({'Id': test['Id'], 'SalePrice': test_pred})
+# plt.show()
+
+# Make predictions on the test set
+y_pred = model.predict(X_test)
+
+# Create a DataFrame to store the predictions with house IDs
+print.y_pred
+predictions = pd.DataFrame({'Id': test['Id'], 'SalePrice': y_pred()})
+
+# Save the predictions to a CSV file
 predictions.to_csv('predictions.csv', index=False)
